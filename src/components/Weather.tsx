@@ -51,36 +51,13 @@ export default function Weather({ initial }: { initial?: Place }) {
   };
 
   // Vercel supplies `initial`; without it (local dev) fall back to an IP lookup.
-  // shortcut: ipapi.co is rate limited and city-level only, swap for navigator.geolocation if precision matters.
+  // shortcut: IP location is city-level and can name a nearby hub city, use navigator.geolocation if exactness matters.
   useEffect(() => {
-    (async () => {
-      const perm = await navigator.permissions?.query({ name: "geolocation" }).catch(() => null);
-      if (perm?.state === "granted") return useMyLocation();
-      if (initial) return load(initial);
-      try {
-        const g = await getJson<{ city: string; country_name: string; latitude: number; longitude: number }>("https://ipapi.co/json/");
-        load({ name: g.city, country: g.country_name, latitude: g.latitude, longitude: g.longitude });
-      } catch {
-        setError("Could not detect your city. Search for one above.");
-      }
-    })();
+    if (initial) return void load(initial);
+    getJson<{ success: boolean; city: string; country: string; latitude: number; longitude: number }>("https://ipwho.is/")
+      .then((g) => (g.success ? load({ name: g.city, country: g.country, latitude: g.latitude, longitude: g.longitude }) : Promise.reject()))
+      .catch(() => setError("Could not detect your city. Search for one above."));
   }, []);
-
-  // Browser location is exact; the IP/Vercel guess is only city-level and can name a nearby hub city.
-  const useMyLocation = () =>
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords: { latitude, longitude } }) => {
-        try {
-          const g = await getJson<{ city: string; locality: string; countryName: string }>(
-            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
-          );
-          load({ name: g.city || g.locality || "Your location", country: g.countryName, latitude, longitude });
-        } catch (e) {
-          setError(e instanceof Error ? e.message : "Could not find your city");
-        }
-      },
-      () => setError("Location permission denied. Allow it in your browser to use your exact location."),
-    );
 
   const search = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,10 +96,6 @@ export default function Weather({ initial }: { initial?: Place }) {
           />
           <button className="rounded-2xl bg-white/20 px-5 py-2 text-sm font-medium transition hover:bg-white/30">Search</button>
         </form>
-
-        <button onClick={useMyLocation} className="text-sm text-white/80 underline underline-offset-4 hover:text-white">
-          📍 Use my exact location
-        </button>
 
         {error && <p className={`${glass} px-5 py-3 text-red-100`}>{error}</p>}
         {!data && !error && (
