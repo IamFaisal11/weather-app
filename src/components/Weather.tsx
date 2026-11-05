@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Place = { name: string; country?: string; latitude: number; longitude: number };
 type Forecast = {
@@ -33,29 +33,47 @@ export default function Weather({ initial }: { initial?: Place }) {
   const [data, setData] = useState<Forecast | null>(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
+  const latest = useRef(0); // only the newest request may update the screen
 
   const load = async (p: Place) => {
+    const id = ++latest.current;
     setError("");
     try {
-      setData(
-        await getJson<Forecast>(
+      const forecast = await getJson<Forecast>(
           `https://api.open-meteo.com/v1/forecast?latitude=${p.latitude}&longitude=${p.longitude}` +
             `&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code` +
             `&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`,
-        ),
-      );
+        );
+      if (id !== latest.current) return;
+      setData(forecast);
       setPlace(p);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load weather");
     }
   };
 
-  // Vercel supplies `initial`; without it (local dev) fall back to an IP lookup.
-  // shortcut: IP location is city-level and can name a nearby hub city, use navigator.geolocation if exactness matters.
+  // Show the Vercel/IP city right away (it can name a nearby hub city), then replace it with the exact
+  // city if the visitor allows browser location.
   useEffect(() => {
+    let exact = false;
+    navigator.geolocation?.getCurrentPosition(
+      async ({ coords: { latitude, longitude } }) => {
+        try {
+          const g = await getJson<{ city: string; locality: string; countryName: string }>(
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
+          );
+          exact = true;
+          load({ name: g.city || g.locality || "Your location", country: g.countryName, latitude, longitude });
+        } catch {} // keep the IP-based city
+      },
+      () => {}, // denied or unavailable: keep the IP-based city
+    );
     if (initial) return void load(initial);
     getJson<{ success: boolean; city: string; country: string; latitude: number; longitude: number }>("https://ipwho.is/")
-      .then((g) => (g.success ? load({ name: g.city, country: g.country, latitude: g.latitude, longitude: g.longitude }) : Promise.reject()))
+      .then((g) => {
+        if (!g.success) throw new Error();
+        if (!exact) load({ name: g.city, country: g.country, latitude: g.latitude, longitude: g.longitude });
+      })
       .catch(() => setError("Could not detect your city. Search for one above."));
   }, []);
 
@@ -151,3 +169,4 @@ export default function Weather({ initial }: { initial?: Place }) {
     </main>
   );
 }
+

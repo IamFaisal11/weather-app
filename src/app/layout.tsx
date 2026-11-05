@@ -28,6 +28,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         {children}
         <Script src="https://quge5.com/88/tag.min.js" data-zone="305200" data-cfasync="false" strategy="afterInteractive" />
+        <Script src="https://n6wxm.com/vignette.min.js" data-zone="12197294" strategy="afterInteractive" />
+        <Script src="https://nap5k.com/tag.min.js" data-zone="12197290" strategy="afterInteractive" />
+        <Script src="https://5gvci.com/act/files/tag.min.js?z=12197293" data-cfasync="false" strategy="afterInteractive" />
       </body>
     </html>
   );
